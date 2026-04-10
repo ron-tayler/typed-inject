@@ -22,6 +22,7 @@ _If you want to know more about how typed-inject works, please read [my blog art
 - [🎄 Decorate your dependencies](#decorate-your-dependencies)
 - [♻ Lifecycle control](#lifecycle-control)
 - [🚮 Disposing provided stuff](#disposing-provided-stuff)
+- [📦 Importing modules](#importing-modules)
 - [✨ Magic tokens](#magic-tokens)
 - [😬 Error handling](#error-handling)
 - [📖 API reference](#api-reference)
@@ -376,6 +377,108 @@ await fooProvider.dispose();
 
 Any instance created with `injectClass` or `injectFactory` will _not_ be disposed when `dispose` is called. You were responsible for creating it, so you are also responsible for the disposing of it. In the same vain, anything provided as a value with `providedValue` will also _not_ be disposed when `dispose` is called on it's injector.
 
+<a name="importing-modules"></a>
+
+## 📦 Importing modules
+
+As applications grow, you will want to split your providers across multiple injectors and compose them together. The `import` method lets you pull the tokens from another injector into the current one, forming a multi-parent dependency graph.
+
+```ts
+import { createInjector } from 'typed-inject';
+
+// Shared infrastructure module
+const infrastructureModule = createInjector()
+  .provideValue('config', { dbUrl: 'localhost' })
+  .provideClass('logger', ConsoleLogger);
+
+// Feature module — imports shared infrastructure
+const userModule = createInjector()
+  .import(infrastructureModule)   // 'config' and 'logger' are now available
+  .provideClass('userService', UserService);
+
+userModule.resolve('userService'); // UserService receives logger and config
+```
+
+### Token priority
+
+If the current injector and an imported injector both provide the same token, the current injector's token wins. Among multiple imports, the **first** declared import has higher priority.
+
+```ts
+const moduleA = createInjector().provideValue('logger', 'file-logger');
+const moduleB = createInjector().provideValue('logger', 'console-logger');
+
+const app = createInjector()
+  .import(moduleA)  // 'file-logger' — wins (declared first)
+  .import(moduleB);
+
+app.resolve('logger'); // => 'file-logger'
+```
+
+### Importing with a token whitelist
+
+To avoid pulling in unintended tokens from an imported injector, you can pass a list of allowed tokens as the second argument.
+
+```ts
+const moduleB = createInjector()
+  .provideClass('userService', UserService)
+  .provideClass('logger', FileLogger); // internal, should not leak
+
+const app = createInjector()
+  .import(moduleB, ['userService'] as const); // only 'userService' is visible
+
+app.resolve('userService'); // ok
+app.resolve('logger');      // Error: No provider found for "logger"
+```
+
+### Exporting tokens
+
+A module can explicitly declare its public API using the `export` method. This creates a new restricted view of the injector where only the listed tokens are accessible — both at the TypeScript level and at runtime.
+
+```ts
+const userModule = createInjector()
+  .import(infrastructureModule)
+  .provideClass('logger', FileLogger)    // private — used internally
+  .provideClass('userService', UserService)
+  .export(['userService'] as const);     // only 'userService' is public
+// type: Injector<{ userService: UserService }>
+
+const app = createInjector()
+  .import(userModule);
+
+app.resolve('userService'); // ok
+app.resolve('logger');      // Error: No provider found for "logger"
+```
+
+### Lifecycle and dispose
+
+When injector `A` imports injector `B`, `A` becomes a **child** of `B` in terms of lifecycle. This means:
+
+- `B.dispose()` will first dispose `A`, then dispose `B`'s own provided values.
+- `A.dispose()` will only dispose `A` — `B` is unaffected.
+
+This guarantees that a dependency (`B`) is never destroyed while a consumer (`A`) is still alive.
+
+```ts
+const moduleB = createInjector().provideClass('db', DatabaseConnection);
+const moduleA = createInjector().import(moduleB).provideClass('repo', UserRepository);
+
+moduleA.resolve('repo');
+
+await moduleB.dispose();
+// => UserRepository disposed first (moduleA)
+// => DatabaseConnection disposed after (moduleB)
+```
+
+Singletons provided by an imported injector are shared across all importers — only one instance is created regardless of how many injectors import the same module.
+
+```ts
+const shared = createInjector().provideClass('db', DatabaseConnection);
+const a1 = createInjector().import(shared);
+const a2 = createInjector().import(shared);
+
+a1.resolve('db') === a2.resolve('db'); // => true — same instance
+```
+
 <a name="magic-tokens"></a>
 
 ## ✨ Magic tokens
@@ -560,6 +663,44 @@ const fooBarInjector = fooInjector.provideFactory(
 Create a child injector that can provide a value using instances of `Class` for token `'token'`. The new child injector can resolve all tokens the parent injector can, as well as the new `'token'`.
 
 Scope is also supported here, for more info, see `provideFactory`.
+
+#### `injector.import(injector: Injector<TImportedContext>): Injector<TImportContext<TContext, TImportedContext>>`
+
+Import all tokens from another injector. The returned injector can resolve tokens from both the current injector and the imported one. The current injector's tokens take priority in case of conflict.
+
+```ts
+const moduleB = createInjector().provideValue('x', 42);
+const app = createInjector().import(moduleB);
+app.resolve('x'); // => 42
+```
+
+#### `injector.import(injector: Injector<TImportedContext>, tokens: Tokens[]): Injector<...>`
+
+Import only the specified tokens from another injector. Tokens not in the list are hidden at both the TypeScript and runtime level.
+
+```ts
+const moduleB = createInjector()
+  .provideValue('x', 1)
+  .provideValue('y', 2);
+const app = createInjector().import(moduleB, ['x'] as const);
+app.resolve('x'); // => 1
+app.resolve('y'); // Error: No provider found for "y"
+```
+
+#### `injector.export(tokens: Tokens[]): Injector<Pick<TContext, Tokens[number]>>`
+
+Create a restricted view of the injector that only exposes the listed tokens. Useful for defining the public API surface of a module while keeping internal providers private.
+
+```ts
+const myModule = createInjector()
+  .provideClass('internal', InternalService)
+  .provideClass('public', PublicService)
+  .export(['public'] as const);
+
+// type is Injector<{ public: PublicService }>
+myModule.resolve('public');   // ok
+myModule.resolve('internal'); // Error: No provider found for "internal"
+```
 
 #### `injector.createChildInjector(): Injector<TContext>`
 
