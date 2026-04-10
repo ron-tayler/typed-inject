@@ -7,11 +7,11 @@ import type { InjectionTarget } from './api/InjectionTarget.js';
                     ┗━━━━━━━━━━━━━━━━━━┛
                               ▲
                               ┃
-               ┏━━━━━━━━━━━━━━┻━━━━━━━━━━━━━┓
-               ┃                            ┃
- ┏━━━━━━━━━━━━━┻━━━━━━━━━━┓        ┏━━━━━━━━┻━━━━━━━┓
- ┃ InjectorDisposedError  ┃        ┃ InjectionError ┃
- ┗━━━━━━━━━━━━━━━━━━━━━━━━┛        ┗━━━━━━━━━━━━━━━━┛
+      ┏━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━┓
+      ┃                       ┃                     ┃
+ ┏━━━━┻━━━━━━━━━━━━━━━━━┓  ┏━━┻━━━━━━━━━━━━┓  ┏━━━━┻━━━━━━━━━━━━━┓
+ ┃ InjectorDisposedError┃  ┃InjectionError ┃  ┃TokenNotFoundError┃
+ ┗━━━━━━━━━━━━━━━━━━━━━━┛  ┗━━━━━━━━━━━━━━━┛  ┗━━━━━━━━━━━━━━━━━━┛
 */
 
 export abstract class TypedInjectError extends Error {}
@@ -41,6 +41,12 @@ export class InjectorDisposedError extends TypedInjectError {
     super(
       `Injector is already disposed. Please don't use it anymore. Tried to ${describeInjectAction(target)} ${name(target)}.`,
     );
+  }
+}
+
+export class TokenNotFoundError extends TypedInjectError {
+  constructor(public readonly token: string | symbol) {
+    super(`No provider found for "${String(token)}"!`);
   }
 }
 
