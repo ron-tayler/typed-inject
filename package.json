@@ -6,7 +6,6 @@
   "type": "module",
   "scripts": {
     "all": "npm run clean && npm run build && npm run lint && npm run test && npm run stryker",
-    "prepare": "npm run build",
     "start": "tsc -b -w",
     "clean": "rimraf dist",
     "lint": "eslint",
