@@ -626,20 +626,20 @@ describe('InjectorImpl', () => {
       expect(actual).eq(42);
     });
 
-    it('should give priority to own chain over imported tokens', () => {
+    it('should give priority to imported tokens over earlier own-chain declarations', () => {
       const moduleB = createInjector().provideValue('x', 'from B');
       const actual = createInjector()
         .provideValue('x', 'from A')
         .import(moduleB)
         .resolve('x');
-      expect(actual).eq('from A');
+      expect(actual).eq('from B');
     });
 
-    it('should give priority to first import over second when conflict', () => {
+    it('should give priority to last import over first import when conflict', () => {
       const moduleA = createInjector().provideValue('x', 'from A');
       const moduleB = createInjector().provideValue('x', 'from B');
       const actual = createInjector().import(moduleA).import(moduleB).resolve('x');
-      expect(actual).eq('from A');
+      expect(actual).eq('from B');
     });
 
     it('should resolve own and imported tokens together', () => {
@@ -731,6 +731,13 @@ describe('InjectorImpl', () => {
         .provideFactory('broken', () => { throw expectedCause; })
         .import(createInjector().provideValue('y', 1));
       expect(() => (injector as any).resolve('broken')).throws('factory error');
+    });
+
+    it('should rethrow non-TokenNotFoundError from imported chain', () => {
+      const expectedCause = new Error('imported factory error');
+      const broken = createInjector().provideFactory('broken', () => { throw expectedCause; });
+      const injector = createInjector().import(broken);
+      expect(() => (injector as any).resolve('broken')).throws('imported factory error');
     });
   });
 

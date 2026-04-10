@@ -392,18 +392,17 @@ class ImportInjector<
     token: Token,
     target: Function | undefined,
   ): TImportContext<TParentContext, TImportedContext>[Token] {
-    try {
-      return this.parent.resolve(token as any, target) as any;
-    } catch (e) {
-      if (!(e instanceof TokenNotFoundError)) throw e;
-    }
     if (
-      this.allowedTokens !== null &&
-      !this.allowedTokens.has(token as string | symbol)
+      this.allowedTokens === null ||
+      this.allowedTokens.has(token as string | symbol)
     ) {
-      throw new TokenNotFoundError(token as string | symbol);
+      try {
+        return this.imported.resolve(token as any, target) as any;
+      } catch (e) {
+        if (!(e instanceof TokenNotFoundError)) throw e;
+      }
     }
-    return this.imported.resolve(token as any, target) as any;
+    return this.parent.resolve(token as any, target) as any;
   }
 
   protected override disposeInjectedValues(): Promise<void> {

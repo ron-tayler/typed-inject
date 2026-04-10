@@ -401,18 +401,20 @@ userModule.resolve('userService'); // UserService receives logger and config
 
 ### Token priority
 
-If the current injector and an imported injector both provide the same token, the current injector's token wins. Among multiple imports, the **first** declared import has higher priority.
+Among multiple sources providing the same token, the **last declared** source wins — just like a child injector overrides its parent. Each subsequent `.import()` call shadows tokens from earlier imports.
 
 ```ts
 const moduleA = createInjector().provideValue('logger', 'file-logger');
 const moduleB = createInjector().provideValue('logger', 'console-logger');
 
 const app = createInjector()
-  .import(moduleA)  // 'file-logger' — wins (declared first)
-  .import(moduleB);
+  .import(moduleA)
+  .import(moduleB); // 'console-logger' — wins (declared last)
 
-app.resolve('logger'); // => 'file-logger'
+app.resolve('logger'); // => 'console-logger'
 ```
+
+This makes it easy to override defaults: import a base module first, then import an override module to replace specific tokens.
 
 ### Importing with a token whitelist
 
@@ -666,7 +668,7 @@ Scope is also supported here, for more info, see `provideFactory`.
 
 #### `injector.import(injector: Injector<TImportedContext>): Injector<TImportContext<TContext, TImportedContext>>`
 
-Import all tokens from another injector. The returned injector can resolve tokens from both the current injector and the imported one. The current injector's tokens take priority in case of conflict.
+Import all tokens from another injector. The returned injector can resolve tokens from both the current injector and the imported one. When the same token is provided by multiple sources, the **last declared** source wins — later imports override earlier ones.
 
 ```ts
 const moduleB = createInjector().provideValue('x', 42);
