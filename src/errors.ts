@@ -1,4 +1,5 @@
 import type { InjectionTarget } from './api/InjectionTarget.js';
+import { TokenType } from './api/Token.js';
 
 /*
 
@@ -45,7 +46,7 @@ export class InjectorDisposedError extends TypedInjectError {
 }
 
 export class TokenNotFoundError extends TypedInjectError {
-  constructor(public readonly token: string | symbol) {
+  constructor(public readonly token: TokenType) {
     super(`No provider found for "${String(token)}"!`);
   }
 }

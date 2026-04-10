@@ -2,6 +2,7 @@ import { InjectableClass, InjectableFunction } from './Injectable.js';
 import { InjectionToken } from './InjectionToken.js';
 import { Scope } from './Scope.js';
 import { TChildContext, TImportContext } from './TChildContext.js';
+import { TokenType } from './Token.js';
 
 export interface Injector<TContext = {}> {
   /**
@@ -28,7 +29,7 @@ export interface Injector<TContext = {}> {
    * @param token The token to associate with the value.
    * @param value The value to provide.
    */
-  provideValue<Token extends string | symbol, R>(
+  provideValue<Token extends TokenType, R>(
     token: Token,
     value: R,
   ): Injector<TChildContext<TContext, R, Token>>;
@@ -39,7 +40,7 @@ export interface Injector<TContext = {}> {
    * @param scope Decide whether the value must be cached after the factory is invoked once. Use `Scope.Singleton` to enable caching (default), or `Scope.Transient` to disable caching.
    */
   provideClass<
-    Token extends string | symbol,
+    Token extends TokenType,
     R,
     Tokens extends readonly InjectionToken<TContext>[],
   >(
@@ -54,7 +55,7 @@ export interface Injector<TContext = {}> {
    * @param scope Decide whether the value must be cached after the factory is invoked once. Use `Scope.Singleton` to enable caching (default), or `Scope.Transient` to disable caching.
    */
   provideFactory<
-    Token extends string | symbol,
+    Token extends TokenType,
     R,
     Tokens extends readonly InjectionToken<TContext>[],
   >(
@@ -80,7 +81,7 @@ export interface Injector<TContext = {}> {
    */
   import<
     TImportedContext,
-    Tokens extends readonly (keyof TImportedContext & (string | symbol))[],
+    Tokens extends readonly (keyof TImportedContext & TokenType)[],
   >(
     injector: Injector<TImportedContext>,
     tokens: Tokens,
@@ -91,7 +92,7 @@ export interface Injector<TContext = {}> {
    * Both TypeScript types and runtime resolution are limited to the exported tokens.
    * @param tokens The list of tokens to expose publicly.
    */
-  export<Tokens extends readonly (keyof TContext & (string | symbol))[]>(
+  export<Tokens extends readonly (keyof TContext & TokenType)[]>(
     tokens: Tokens,
   ): Injector<Pick<TContext, Tokens[number]>>;
 
