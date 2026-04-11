@@ -1,14 +1,15 @@
 import { CorrespondingTypes } from './CorrespondingType.js';
 import { InjectionToken } from './InjectionToken.js';
+import { TContextList } from './TChildContext.js';
 
 export type InjectableClass<
-  TContext,
+  TContext extends TContextList,
   R,
   Tokens extends readonly InjectionToken<TContext>[],
 > = ClassWithInjections<TContext, R, Tokens> | ClassWithoutInjections<R>;
 
 export interface ClassWithInjections<
-  TContext,
+  TContext extends TContextList,
   R,
   Tokens extends readonly InjectionToken<TContext>[],
 > {
@@ -19,7 +20,7 @@ export interface ClassWithInjections<
 export type ClassWithoutInjections<R> = new () => R;
 
 export type InjectableFunction<
-  TContext,
+  TContext extends TContextList,
   R,
   Tokens extends readonly InjectionToken<TContext>[],
 > =
@@ -27,7 +28,7 @@ export type InjectableFunction<
   | InjectableFunctionWithoutInject<R>;
 
 export interface InjectableFunctionWithInject<
-  TContext,
+  TContext extends TContextList,
   R,
   Tokens extends readonly InjectionToken<TContext>[],
 > {
@@ -38,7 +39,7 @@ export interface InjectableFunctionWithInject<
 export type InjectableFunctionWithoutInject<R> = () => R;
 
 export type Injectable<
-  TContext,
+  TContext extends TContextList,
   R,
   Tokens extends readonly InjectionToken<TContext>[],
 > =

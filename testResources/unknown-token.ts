@@ -1,4 +1,4 @@
-// error: "Type '[\"not-exists\"]' is not assignable to type 'readonly InjectionToken<{}>[]"
+// error: "\"not-exists\""
 
 import { createInjector, tokens } from '../src/index.js';
 

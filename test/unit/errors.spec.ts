@@ -1,5 +1,26 @@
 import { expect } from 'chai';
-import { InjectorDisposedError, InjectionError } from '../../src/index.js';
+import { InjectorDisposedError, InjectionError, TokenNotFoundError } from '../../src/index.js';
+
+describe(TokenNotFoundError.name, () => {
+  it('should format a correct message for a string token', () => {
+    expect(new TokenNotFoundError('myService').message).eq(
+      'No provider found for "myService"!',
+    );
+  });
+
+  it('should format a correct message for a class token', () => {
+    class MyService {}
+    expect(new TokenNotFoundError(MyService).message).eq(
+      'No provider found for [class MyService]!',
+    );
+  });
+
+  it('should format a correct message for an anonymous class token', () => {
+    expect(new TokenNotFoundError(class {}).message).eq(
+      'No provider found for [class <anonymous>]!',
+    );
+  });
+});
 
 describe(InjectorDisposedError.name, () => {
   it('should be instanceof Error', () => {

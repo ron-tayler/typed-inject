@@ -47,7 +47,11 @@ export class InjectorDisposedError extends TypedInjectError {
 
 export class TokenNotFoundError extends TypedInjectError {
   constructor(public readonly token: TokenType) {
-    super(`No provider found for "${String(token)}"!`);
+    const display =
+      typeof token === 'function'
+        ? `[class ${(token as { name?: string }).name || '<anonymous>'}]`
+        : `"${String(token)}"`;
+    super(`No provider found for ${display}!`);
   }
 }
 

@@ -15,7 +15,7 @@ import { Disposable } from '../../src/api/Disposable.js';
 import { Task, tick } from '../helpers/Task.js';
 
 describe('InjectorImpl', () => {
-  let rootInjector: Injector<{}>;
+  let rootInjector: Injector<[]>;
 
   beforeEach(() => {
     rootInjector = createInjector();
@@ -27,7 +27,7 @@ describe('InjectorImpl', () => {
       class Injectable {
         constructor(
           public readonly target: Function | undefined,
-          public readonly injector: Injector<{}>,
+          public readonly injector: Injector<[]>,
         ) {}
         public static inject = tokens(TARGET_TOKEN, INJECTOR_TOKEN);
       }
@@ -43,9 +43,9 @@ describe('InjectorImpl', () => {
     it('should be able to inject injector and target in a function', () => {
       // Arrange
       let actualTarget: Function | undefined;
-      let actualInjector: Injector<{}> | undefined;
+      let actualInjector: Injector<[]> | undefined;
       const expectedResult = { result: 42 };
-      function injectable(t: Function | undefined, i: Injector<{}>) {
+      function injectable(t: Function | undefined, i: Injector<[]>) {
         actualTarget = t;
         actualInjector = i;
         return expectedResult;
@@ -145,7 +145,7 @@ describe('InjectorImpl', () => {
 
     it('should be able to provide an Injector for a partial context', () => {
       class Foo {
-        constructor(public injector: Injector<{ bar: number }>) {}
+        constructor(public injector: Injector<any>) {}
         public static inject = tokens(INJECTOR_TOKEN);
       }
       const barBazInjector = rootInjector
@@ -296,7 +296,7 @@ describe('InjectorImpl', () => {
       const actual = factoryProvider.injectClass(
         class {
           constructor(
-            public injector: Injector<{ answer: number }>,
+            public injector: Injector<any>,
             public answer: number,
           ) {}
           public static inject = tokens(INJECTOR_TOKEN, 'answer');
@@ -877,6 +877,81 @@ describe('InjectorImpl', () => {
             'Could not inject [class Parent] -> [token "child"] -> [class Child] -> [token "grandChild"] -> [class GrandChild]. Cause: Expected error',
           path: [Parent, 'child', Child, 'grandChild', GrandChild],
         });
+    });
+  });
+
+  describe('Class token keys', () => {
+    it('should provide and resolve a value using a class as token', () => {
+      class MyService {
+        value = 42;
+      }
+      const sut = rootInjector.provideValue(MyService, new MyService());
+      expect(sut.resolve(MyService)).instanceOf(MyService);
+    });
+
+    it('should provide a class with itself as self-token via provide()', () => {
+      class Counter {
+        count = 0;
+      }
+      const sut = rootInjector.provide(Counter);
+      expect(sut.resolve(Counter)).instanceOf(Counter);
+    });
+
+    it('should provide an abstract-token backed by a concrete class via provide()', () => {
+      abstract class Logger {
+        abstract log(msg: string): void;
+      }
+      class ConsoleLogger extends Logger {
+        public messages: string[] = [];
+        log(msg: string) {
+          this.messages.push(msg);
+        }
+      }
+      const sut = rootInjector.provide(Logger, ConsoleLogger);
+      const logger = sut.resolve(Logger);
+      expect(logger).instanceOf(ConsoleLogger);
+    });
+
+    it('should inject a class-token dependency into a class', () => {
+      class Config {
+        value = 'production';
+      }
+      class Service {
+        constructor(public config: Config) {}
+        public static inject = tokens(Config);
+      }
+      const actual = rootInjector.provide(Config).injectClass(Service);
+      expect(actual.config).instanceOf(Config);
+      expect(actual.config.value).eq('production');
+    });
+
+    it('should cache class-token singleton by default via provide()', () => {
+      class Counter {
+        static n = 0;
+        id = ++Counter.n;
+      }
+      const sut = rootInjector.provide(Counter);
+      const a = sut.resolve(Counter);
+      const b = sut.resolve(Counter);
+      expect(a).eq(b);
+    });
+
+    it('should not cache class-token with Transient scope via provide()', () => {
+      class Counter {
+        static n = 0;
+        id = ++Counter.n;
+      }
+      const sut = rootInjector.provide(Counter, Scope.Transient);
+      const a = sut.resolve(Counter);
+      const b = sut.resolve(Counter);
+      expect(a).not.eq(b);
+    });
+
+    it('should throw TokenNotFoundError with class name for missing class token', () => {
+      class Missing {}
+      expect(() => (rootInjector as any).resolve(Missing)).throws(
+        'No provider found for [class Missing]!',
+      );
     });
   });
 

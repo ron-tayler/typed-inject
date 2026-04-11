@@ -5,6 +5,7 @@ export * from './api/InjectionTarget.js';
 export * from './api/Injector.js';
 export * from './api/Scope.js';
 export * from './api/TChildContext.js';
+export * from './api/Token.js';
 export * from './InjectorImpl.js';
 export * from './errors.js';
 export * from './tokens.js';

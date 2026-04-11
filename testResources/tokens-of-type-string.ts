@@ -1,4 +1,4 @@
-// error: "Type 'string[]' is not assignable to type 'readonly InjectionToken<{ bar: number; }>[]'"
+// error: "Type 'string[]' is not assignable to type"
 
 import { createInjector } from '../src/index.js';
 

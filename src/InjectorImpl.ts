@@ -14,7 +14,14 @@ import type {
 } from './api/Injectable.js';
 import type { Injector } from './api/Injector.js';
 import type { Disposable } from './api/Disposable.js';
-import type { TChildContext, TImportContext } from './api/TChildContext.js';
+import type {
+  ContextLookup,
+  ContextTokens,
+  TChildContext,
+  TContextList,
+  TImportContext,
+  TPickContext,
+} from './api/TChildContext.js';
 import type { InjectionTarget } from './api/InjectionTarget.js';
 import { Scope } from './api/Scope.js';
 import { InjectionError, InjectorDisposedError, TokenNotFoundError } from './errors.js';
@@ -50,7 +57,9 @@ const DEFAULT_SCOPE = Scope.Singleton;
  ┗━━━━━━━━━━━━━━━━━┛ ┗━━━━━━━━━━━━━━━┛ ┗━━━━━━━━━━━━━━━┛
 */
 
-abstract class AbstractInjector<TContext> implements Injector<TContext> {
+abstract class AbstractInjector<TContext extends TContextList>
+  implements Injector<TContext>
+{
   private childInjectors: Set<Injector<any>> = new Set();
 
   public injectClass<R, Tokens extends InjectionToken<TContext>[]>(
@@ -102,7 +111,7 @@ abstract class AbstractInjector<TContext> implements Injector<TContext> {
   ): AbstractInjector<TChildContext<TContext, R, Token>> {
     this.throwIfDisposed(token);
     const provider = new ValueProvider(this, token, value);
-    this.childInjectors.add(provider as Injector<any>);
+    this.childInjectors.add(provider as unknown as Injector<any>);
     return provider;
   }
 
@@ -117,9 +126,10 @@ abstract class AbstractInjector<TContext> implements Injector<TContext> {
   ): AbstractInjector<TChildContext<TContext, R, Token>> {
     this.throwIfDisposed(token);
     const provider = new ClassProvider(this, token, scope, Class);
-    this.childInjectors.add(provider as Injector<any>);
+    this.childInjectors.add(provider as unknown as Injector<any>);
     return provider;
   }
+
   public provideFactory<
     Token extends TokenType,
     R,
@@ -131,15 +141,23 @@ abstract class AbstractInjector<TContext> implements Injector<TContext> {
   ): AbstractInjector<TChildContext<TContext, R, Token>> {
     this.throwIfDisposed(token);
     const provider = new FactoryProvider(this, token, scope, factory);
-    this.childInjectors.add(provider as Injector<any>);
+    this.childInjectors.add(provider as unknown as Injector<any>);
     return provider;
   }
 
-  public resolve<Token extends keyof TContext>(
+  public provide(tokenOrClass: any, classOrScope?: any, scope?: Scope): any {
+    if (typeof classOrScope === 'function') {
+      return this.provideClass(tokenOrClass, classOrScope, scope);
+    } else {
+      return this.provideClass(tokenOrClass, tokenOrClass, classOrScope as Scope | undefined);
+    }
+  }
+
+  public resolve<Token extends ContextTokens<TContext>>(
     token: Token,
     target?: Function,
-  ): TContext[Token] {
-    this.throwIfDisposed(token);
+  ): ContextLookup<TContext, Token> {
+    this.throwIfDisposed(token as TokenType);
     return this.resolveInternal(token, target);
   }
 
@@ -159,30 +177,25 @@ abstract class AbstractInjector<TContext> implements Injector<TContext> {
 
   private isDisposed = false;
 
-  public import<
-    TImportedContext,
-    Tokens extends readonly (keyof TImportedContext & TokenType)[],
-  >(
-    injector: Injector<TImportedContext>,
-    tokens?: Tokens,
-  ): Injector<TImportContext<TContext, Pick<TImportedContext, Tokens[number]>>> {
+  public import(
+    injector: Injector<any>,
+    tokens?: readonly TokenType[],
+  ): Injector<any> {
     this.throwIfDisposed('import');
     const allowedTokens = tokens ? new Set<TokenType>(tokens) : null;
     const node = new ImportInjector(
       this,
-      injector as AbstractInjector<TImportedContext>,
+      injector as AbstractInjector<any>,
       allowedTokens,
     );
-    (injector as AbstractInjector<TImportedContext>).addChild(node as Injector<any>);
+    (injector as AbstractInjector<any>).addChild(node as unknown as Injector<any>);
     return node as any;
   }
 
-  public export<Tokens extends readonly (keyof TContext & TokenType)[]>(
-    tokens: Tokens,
-  ): Injector<Pick<TContext, Tokens[number]>> {
+  public export(tokens: readonly TokenType[]): Injector<any> {
     this.throwIfDisposed('export');
     const node = new ExportInjector(this, new Set<TokenType>(tokens));
-    this.childInjectors.add(node as Injector<any>);
+    this.childInjectors.add(node as unknown as Injector<any>);
     return node as any;
   }
 
@@ -204,13 +217,13 @@ abstract class AbstractInjector<TContext> implements Injector<TContext> {
 
   protected abstract disposeInjectedValues(): Promise<void>;
 
-  protected abstract resolveInternal<Token extends keyof TContext>(
+  protected abstract resolveInternal<Token extends ContextTokens<TContext>>(
     token: Token,
     target?: Function,
-  ): TContext[Token];
+  ): ContextLookup<TContext, Token>;
 }
 
-class RootInjector extends AbstractInjector<{}> {
+class RootInjector extends AbstractInjector<[]> {
   public override resolveInternal(token: never): never {
     throw new TokenNotFoundError(token as TokenType);
   }
@@ -220,14 +233,14 @@ class RootInjector extends AbstractInjector<{}> {
 }
 
 class ChildInjector<
-  TParentContext,
-  TContext,
+  TParentContext extends TContextList,
+  TContext extends TContextList,
 > extends AbstractInjector<TContext> {
   protected override async disposeInjectedValues(): Promise<void> {}
-  protected override resolveInternal<Token extends keyof TContext>(
+  protected override resolveInternal<Token extends ContextTokens<TContext>>(
     token: Token,
     target?: Function,
-  ): TContext[Token] {
+  ): ContextLookup<TContext, Token> {
     return this.parent.resolve(token as any, target) as any;
   }
   constructor(protected readonly parent: AbstractInjector<TParentContext>) {
@@ -241,7 +254,7 @@ class ChildInjector<
 }
 
 abstract class ChildWithProvidedInjector<
-  TParentContext,
+  TParentContext extends TContextList,
   TProvided,
   CurrentToken extends TokenType,
 > extends ChildInjector<
@@ -261,16 +274,12 @@ abstract class ChildWithProvidedInjector<
   protected abstract result(target: Function | undefined): TProvided;
 
   protected override resolveInternal<
-    SearchToken extends keyof TChildContext<
-      TParentContext,
-      TProvided,
-      CurrentToken
-    >,
+    SearchToken extends ContextTokens<TChildContext<TParentContext, TProvided, CurrentToken>>,
   >(
     token: SearchToken,
     target: Function | undefined,
-  ): TChildContext<TParentContext, TProvided, CurrentToken>[SearchToken] {
-    if (token === this.token) {
+  ): ContextLookup<TChildContext<TParentContext, TProvided, CurrentToken>, SearchToken> {
+    if ((token as unknown) === this.token) {
       if (this.cached) {
         return this.cached.value;
       } else {
@@ -309,7 +318,7 @@ abstract class ChildWithProvidedInjector<
 }
 
 class ValueProvider<
-  TParentContext,
+  TParentContext extends TContextList,
   TProvided,
   ProvidedToken extends TokenType,
 > extends ChildWithProvidedInjector<TParentContext, TProvided, ProvidedToken> {
@@ -326,7 +335,7 @@ class ValueProvider<
 }
 
 class FactoryProvider<
-  TParentContext,
+  TParentContext extends TContextList,
   TProvided,
   ProvidedToken extends TokenType,
   Tokens extends InjectionToken<TParentContext>[],
@@ -351,7 +360,7 @@ class FactoryProvider<
 }
 
 class ClassProvider<
-  TParentContext,
+  TParentContext extends TContextList,
   TProvided,
   ProvidedToken extends TokenType,
   Tokens extends InjectionToken<TParentContext>[],
@@ -375,9 +384,10 @@ class ClassProvider<
   }
 }
 
-class ImportInjector<TParentContext, TImportedContext> extends AbstractInjector<
-  TImportContext<TParentContext, TImportedContext>
-> {
+class ImportInjector<
+  TParentContext extends TContextList,
+  TImportedContext extends TContextList,
+> extends AbstractInjector<TImportContext<TParentContext, TImportedContext>> {
   constructor(
     private readonly parent: AbstractInjector<TParentContext>,
     private readonly imported: AbstractInjector<TImportedContext>,
@@ -387,11 +397,11 @@ class ImportInjector<TParentContext, TImportedContext> extends AbstractInjector<
   }
 
   protected override resolveInternal<
-    Token extends keyof TImportContext<TParentContext, TImportedContext>,
+    Token extends ContextTokens<TImportContext<TParentContext, TImportedContext>>,
   >(
     token: Token,
     target: Function | undefined,
-  ): TImportContext<TParentContext, TImportedContext>[Token] {
+  ): ContextLookup<TImportContext<TParentContext, TImportedContext>, Token> {
     if (
       this.allowedTokens === null ||
       this.allowedTokens.has(token as TokenType)
@@ -410,15 +420,15 @@ class ImportInjector<TParentContext, TImportedContext> extends AbstractInjector<
   }
 
   public override async dispose() {
-    this.imported.removeChild(this as Injector<any>);
+    this.imported.removeChild(this as unknown as Injector<any>);
     await super.dispose();
   }
 }
 
 class ExportInjector<
-  TContext,
-  TExportedTokens extends keyof TContext,
-> extends ChildInjector<TContext, Pick<TContext, TExportedTokens>> {
+  TContext extends TContextList,
+  TExportedTokens extends ContextTokens<TContext>,
+> extends ChildInjector<TContext, TPickContext<TContext, TExportedTokens>> {
   constructor(
     parent: AbstractInjector<TContext>,
     private readonly exportedTokens: ReadonlySet<TokenType>,
@@ -427,11 +437,11 @@ class ExportInjector<
   }
 
   protected override resolveInternal<
-    Token extends keyof Pick<TContext, TExportedTokens>,
+    Token extends ContextTokens<TPickContext<TContext, TExportedTokens>>,
   >(
     token: Token,
     target: Function | undefined,
-  ): Pick<TContext, TExportedTokens>[Token] {
+  ): ContextLookup<TPickContext<TContext, TExportedTokens>, Token> {
     if (!this.exportedTokens.has(token as TokenType)) {
       throw new TokenNotFoundError(token as TokenType);
     }
@@ -439,6 +449,6 @@ class ExportInjector<
   }
 }
 
-export function createInjector(): Injector<{}> {
+export function createInjector(): Injector<[]> {
   return new RootInjector();
 }

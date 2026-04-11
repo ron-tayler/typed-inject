@@ -1,3 +1,4 @@
+import { ContextLookup, TContextList } from './TChildContext.js';
 import {
   InjectionToken,
   InjectorToken,
@@ -6,18 +7,16 @@ import {
 import { Injector } from './Injector.js';
 
 export type CorrespondingType<
-  TContext,
+  TContext extends TContextList,
   T extends InjectionToken<TContext>,
 > = T extends InjectorToken
   ? Injector<TContext>
   : T extends TargetToken
     ? Function | undefined
-    : T extends keyof TContext
-      ? TContext[T]
-      : never;
+    : ContextLookup<TContext, T>;
 
 export type CorrespondingTypes<
-  TContext,
+  TContext extends TContextList,
   TS extends readonly InjectionToken<TContext>[],
 > = {
   [K in keyof TS]: TS[K] extends InjectionToken<TContext>
